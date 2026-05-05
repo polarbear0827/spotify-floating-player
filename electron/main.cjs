@@ -37,7 +37,8 @@ function createWindow() {
     backgroundColor: '#00000000',
     alwaysOnTop: alwaysOnTop,
     resizable: true,
-    hasShadow: true,
+    hasShadow: false,
+    roundedCorners: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
