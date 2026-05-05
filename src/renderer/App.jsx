@@ -14,7 +14,7 @@ import {
   logout,
 } from './lib/spotify.js';
 
-const POLL_INTERVAL = 1000; // ms
+const POLL_INTERVAL = 3000; // ms — Spotify rate-limits aggressive polling
 
 export default function App() {
   const [clientId, setClientId] = useState('');
@@ -42,8 +42,10 @@ export default function App() {
     if (!clientId || !hasTokens) return;
     let cancelled = false;
     let lastTrackId = null;
+    let timeoutId = null;
 
     const tick = async () => {
+      let nextDelay = POLL_INTERVAL;
       try {
         const token = await getValidAccessToken(clientId);
         if (!token) {
@@ -59,48 +61,53 @@ export default function App() {
           setProgressMs(0);
           lastTrackId = null;
           setLyrics({ synced: null, plain: null });
-          return;
-        }
+        } else {
+          const item = data.item;
+          const newTrack = {
+            id: item.id,
+            name: item.name,
+            artists: (item.artists || []).map((a) => a.name).join(', '),
+            album: item.album?.name,
+            albumArt: item.album?.images?.[0]?.url,
+            durationMs: item.duration_ms,
+          };
+          setTrack(newTrack);
+          setProgressMs(data.progress_ms || 0);
+          setIsPlaying(!!data.is_playing);
 
-        const item = data.item;
-        const newTrack = {
-          id: item.id,
-          name: item.name,
-          artists: (item.artists || []).map((a) => a.name).join(', '),
-          album: item.album?.name,
-          albumArt: item.album?.images?.[0]?.url,
-          durationMs: item.duration_ms,
-        };
-        setTrack(newTrack);
-        setProgressMs(data.progress_ms || 0);
-        setIsPlaying(!!data.is_playing);
-
-        if (item.id !== lastTrackId) {
-          lastTrackId = item.id;
-          setLyrics({ synced: null, plain: null });
-          setLyricsLoading(true);
-          fetchLyrics({
-            trackName: item.name,
-            artistName: item.artists?.[0]?.name,
-            albumName: item.album?.name,
-            durationSec: item.duration_ms / 1000,
-          }).then((l) => {
-            if (!cancelled) {
-              setLyrics(l);
-              setLyricsLoading(false);
-            }
-          });
+          if (item.id !== lastTrackId) {
+            lastTrackId = item.id;
+            setLyrics({ synced: null, plain: null });
+            setLyricsLoading(true);
+            fetchLyrics({
+              trackName: item.name,
+              artistName: item.artists?.[0]?.name,
+              albumName: item.album?.name,
+              durationSec: item.duration_ms / 1000,
+            }).then((l) => {
+              if (!cancelled) {
+                setLyrics(l);
+                setLyricsLoading(false);
+              }
+            });
+          }
         }
       } catch (e) {
-        console.error('poll error', e);
+        if (e.status === 429) {
+          nextDelay = Math.max((e.retryAfter || 5) * 1000, POLL_INTERVAL);
+          console.warn(`Rate-limited, backing off ${nextDelay}ms`);
+        } else {
+          console.error('poll error', e);
+        }
+      } finally {
+        if (!cancelled) timeoutId = setTimeout(tick, nextDelay);
       }
     };
 
     tick();
-    const interval = setInterval(tick, POLL_INTERVAL);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [clientId, hasTokens]);
 

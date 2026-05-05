@@ -130,6 +130,13 @@ async function spotifyFetch(token, path, options = {}) {
     },
   });
   if (res.status === 204) return null; // no content
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get('retry-after') || '5', 10);
+    const err = new Error(`Spotify 429: rate limited, retry after ${retryAfter}s`);
+    err.status = 429;
+    err.retryAfter = retryAfter;
+    throw err;
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Spotify ${res.status}: ${text}`);
