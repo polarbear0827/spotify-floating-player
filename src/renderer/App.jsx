@@ -26,6 +26,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [lyrics, setLyrics] = useState({ synced: null, plain: null });
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   // Init: load clientId & token state
   useEffect(() => {
@@ -97,7 +98,11 @@ export default function App() {
       } catch (e) {
         if (e.status === 429) {
           consecutive429 += 1;
-          // Spotify's retry-after often understates; use exponential floor
+          if (consecutive429 >= 5) {
+            console.error('Circuit breaker tripped: too many 429s, polling halted. Please wait 30+ minutes and restart the app.');
+            setRateLimited(true);
+            return; // do NOT schedule next tick
+          }
           const headerWait = (e.retryAfter || 5) * 1000;
           const expWait = Math.min(60000, 15000 * Math.pow(2, consecutive429 - 1));
           nextDelay = Math.max(headerWait, expWait);
@@ -178,6 +183,18 @@ export default function App() {
     <div className="h-screen w-screen">
       <div className="glass h-full w-full flex flex-col overflow-hidden relative">
         <TitleBar onSettings={() => setShowSettings((s) => !s)} />
+
+        {rateLimited && (
+          <div className="bg-red-900/70 text-white text-xs px-3 py-2 flex items-center justify-between">
+            <span>⚠️ Spotify 限流中，已暫停輪詢。請等 30 分鐘後再試。</span>
+            <button
+              className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded"
+              onClick={() => { setRateLimited(false); setHasTokens(false); setTimeout(() => setHasTokens(true), 50); }}
+            >
+              重試
+            </button>
+          </div>
+        )}
 
         {/* Section 1: Track info — fixed height */}
         <NowPlaying track={track} />
