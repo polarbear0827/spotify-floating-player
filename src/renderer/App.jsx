@@ -143,7 +143,7 @@ export default function App() {
   // -------- render --------
   if (!clientId || !hasTokens) {
     return (
-      <div className="h-screen w-screen p-2">
+      <div className="h-screen w-screen">
         <div className="glass h-full w-full flex flex-col">
           <TitleBar onSettings={() => {}} hideSettings />
           <div className="flex-1 flex items-center justify-center p-6 no-drag">
@@ -162,7 +162,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen p-2">
+    <div className="h-screen w-screen">
       <div className="glass h-full w-full flex flex-col overflow-hidden relative">
         <TitleBar onSettings={() => setShowSettings((s) => !s)} />
 
