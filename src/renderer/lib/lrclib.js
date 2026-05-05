@@ -21,16 +21,14 @@ export async function fetchLyrics({ trackName, artistName, albumName, durationSe
       headers: { 'User-Agent': 'spotify-floating-player (https://github.com/polarbear0827/spotify-floating-player)' },
     });
     if (res.status === 404) {
-      // Try search fallback
-      return await searchFallback({ trackName, artistName });
+      return await searchFallback({ trackName, artistName, durationSec });
     }
     if (!res.ok) return { synced: null, plain: null };
     const data = await res.json();
     const parsed = parseLyricsResponse(data);
-    // If /get returned only plain lyrics, try /search to find a version with synced lyrics
     if (!parsed.synced) {
-      const fb = await searchFallback({ trackName, artistName });
-      if (fb.synced) return fb;
+      const fb = await searchFallback({ trackName, artistName, durationSec });
+      if (fb.synced || fb.plain) return fb;
     }
     return parsed;
   } catch (e) {
@@ -39,7 +37,7 @@ export async function fetchLyrics({ trackName, artistName, albumName, durationSe
   }
 }
 
-async function searchFallback({ trackName, artistName }) {
+async function searchFallback({ trackName, artistName, durationSec }) {
   const qs = new URLSearchParams({
     track_name: trackName || '',
     artist_name: artistName || '',
@@ -49,12 +47,35 @@ async function searchFallback({ trackName, artistName }) {
     if (!res.ok) return { synced: null, plain: null };
     const list = await res.json();
     if (!Array.isArray(list) || list.length === 0) return { synced: null, plain: null };
-    // pick first with syncedLyrics
-    const best = list.find((x) => x.syncedLyrics) || list[0];
+    const synced = list.filter((x) => x.syncedLyrics);
+    if (synced.length === 0) {
+      // no synced anywhere → return plain from closest-duration result
+      const best = pickClosest(list, durationSec) || list[0];
+      return parseLyricsResponse(best);
+    }
+    // Prefer synced version whose duration is closest to actual track.
+    // If gap > 5s, treat as unreliable and fall back to plain (better no scroll than wrong scroll).
+    const best = pickClosest(synced, durationSec);
+    if (durationSec && best && Math.abs((best.duration || 0) - durationSec) > 5) {
+      // synced version's timing won't match → use plain from closest-duration result instead
+      const plainBest = pickClosest(list, durationSec) || list[0];
+      return { synced: null, plain: plainBest.plainLyrics || null };
+    }
     return parseLyricsResponse(best);
   } catch (e) {
     return { synced: null, plain: null };
   }
+}
+
+function pickClosest(list, durationSec) {
+  if (!durationSec) return list[0];
+  let best = null;
+  let bestGap = Infinity;
+  for (const x of list) {
+    const gap = Math.abs((x.duration || 0) - durationSec);
+    if (gap < bestGap) { bestGap = gap; best = x; }
+  }
+  return best;
 }
 
 function parseLyricsResponse(data) {
