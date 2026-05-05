@@ -26,7 +26,13 @@ export async function fetchLyrics({ trackName, artistName, albumName, durationSe
     }
     if (!res.ok) return { synced: null, plain: null };
     const data = await res.json();
-    return parseLyricsResponse(data);
+    const parsed = parseLyricsResponse(data);
+    // If /get returned only plain lyrics, try /search to find a version with synced lyrics
+    if (!parsed.synced) {
+      const fb = await searchFallback({ trackName, artistName });
+      if (fb.synced) return fb;
+    }
+    return parsed;
   } catch (e) {
     console.error('LRCLIB fetch failed', e);
     return { synced: null, plain: null };
