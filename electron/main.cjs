@@ -53,7 +53,9 @@ function createWindow() {
   // Load renderer
   if (isDev) {
     mainWindow.loadURL('http://127.0.0.1:5173');
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (process.env.OPEN_DEVTOOLS) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
