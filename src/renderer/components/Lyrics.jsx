@@ -83,9 +83,6 @@ export default function Lyrics({ lyrics, loading, progressMs, hasTrack }) {
       ref={containerRef}
       className="flex-1 min-h-0 overflow-hidden relative px-4"
     >
-      {/* fade masks top & bottom */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-spotify-dark/80 to-transparent z-10" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-spotify-dark/80 to-transparent z-10" />
 
       <div
         className="text-center will-change-transform"
