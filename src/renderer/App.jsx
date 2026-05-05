@@ -43,6 +43,7 @@ export default function App() {
     let cancelled = false;
     let lastTrackId = null;
     let timeoutId = null;
+    let consecutive429 = 0;
 
     const tick = async () => {
       let nextDelay = POLL_INTERVAL;
@@ -54,6 +55,7 @@ export default function App() {
         }
         const data = await getCurrentlyPlaying(token);
         if (cancelled) return;
+        consecutive429 = 0;
 
         if (!data || !data.item) {
           setTrack(null);
@@ -94,8 +96,12 @@ export default function App() {
         }
       } catch (e) {
         if (e.status === 429) {
-          nextDelay = Math.max((e.retryAfter || 5) * 1000, POLL_INTERVAL);
-          console.warn(`Rate-limited, backing off ${nextDelay}ms`);
+          consecutive429 += 1;
+          // Spotify's retry-after often understates; use exponential floor
+          const headerWait = (e.retryAfter || 5) * 1000;
+          const expWait = Math.min(60000, 15000 * Math.pow(2, consecutive429 - 1));
+          nextDelay = Math.max(headerWait, expWait);
+          console.warn(`Rate-limited (#${consecutive429}), backing off ${nextDelay}ms`);
         } else {
           console.error('poll error', e);
         }
