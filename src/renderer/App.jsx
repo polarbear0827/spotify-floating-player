@@ -47,6 +47,11 @@ export default function App() {
     let consecutive429 = 0;
 
     const tick = async () => {
+      // Skip API calls when window is hidden/minimized — saves quota
+      if (typeof document !== 'undefined' && document.hidden) {
+        if (!cancelled) timeoutId = setTimeout(tick, POLL_INTERVAL);
+        return;
+      }
       let nextDelay = POLL_INTERVAL;
       try {
         const token = await getValidAccessToken(clientId);
@@ -115,7 +120,8 @@ export default function App() {
       }
     };
 
-    tick();
+    // Jitter initial poll (0-2s) to avoid thundering-herd on app restart
+    timeoutId = setTimeout(tick, Math.floor(Math.random() * 2000));
     return () => {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
